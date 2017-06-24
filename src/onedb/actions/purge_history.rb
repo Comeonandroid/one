@@ -66,3 +66,31 @@ class OneDBAction::PurgeHistory < OneDBAction::Base
         0
     end
 end
+
+class OneDBAction::PurgeDoneVM < OneDBAction::Base
+    def run
+        vmpool = OpenNebula::VirtualMachinePool.new(client)
+        vmpool.info(OpenNebula::Pool::INFO_ALL,
+                    -1,
+                    -1,
+                    OpenNebula::VirtualMachine::VM_STATE.index('DONE'))
+
+        vmpool.each do |vm|
+            sql = "DELETE FROM vm_pool WHERE oid = #{vm.id}"
+
+            rc = system.sql_command(sql, false)
+            if OpenNebula.is_error?(rc)
+                raise "Error deleting record: #{rc.message}"
+            end
+
+            sql = "DELETE FROM history WHERE vid = #{vm.id}"
+
+            rc = system.sql_command(sql, false)
+            if OpenNebula.is_error?(rc)
+                raise "Error deleting record: #{rc.message}"
+            end
+        end
+
+        0
+    end
+end

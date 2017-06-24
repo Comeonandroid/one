@@ -433,4 +433,20 @@ cmd=CommandParser::CmdParser.new(ARGV) do
         end
     end
 
+    ###########################################################################
+    # Purge VMs in DONE state
+    ###########################################################################
+    purge_done_desc = <<-EOT.unindent
+        Deletes all VMs in DONE state
+    EOT
+
+    command :'purge-done' , purge_done_desc, :options=>[BACKUP] do
+        begin
+            action = OneDBAction::PurgeDoneVM.new
+            action.run
+        rescue Exception => e
+            pp e.backtrace
+            [-1, e.message]
+        end
+    end
 end
