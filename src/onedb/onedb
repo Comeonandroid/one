@@ -48,6 +48,7 @@ $: << RUBY_LIB_LOCATION+'/onedb'
 require 'cli/command_parser'
 require 'onedb'
 require 'opennebula'
+require 'actions/purge_history'
 
 FORCE={
     :name => "force",
@@ -414,4 +415,22 @@ cmd=CommandParser::CmdParser.new(ARGV) do
             [-1, e.message]
         end
     end
+
+    ###########################################################################
+    # Purge history
+    ###########################################################################
+    purge_history_desc = <<-EOT.unindent
+        Deletes all but the last history records from non DONE VMs
+    EOT
+
+    command :'purge-history' , purge_history_desc, :options=>[BACKUP] do
+        begin
+            action = OneDBAction::PurgeHistory.new
+            action.run
+        rescue Exception => e
+            pp e.backtrace
+            [-1, e.message]
+        end
+    end
+
 end
