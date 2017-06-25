@@ -1,29 +1,25 @@
 
 require 'opennebula'
 
-class OneDBAction
-    class Base
-        def initialize
-            @client = nil
-            @system = nil
-        end
-
-        def client
-            @client ||= OpenNebula::Client.new
-        end
-
-        def system
-            @system ||= OpenNebula::System.new(client)
-        end
-
-        def db_escape(string)
-            string.gsub("'", "''")
-        end
+class OneDBLive
+    def initialize
+        @client = nil
+        @system = nil
     end
-end
 
-class OneDBAction::PurgeHistory < OneDBAction::Base
-    def run
+    def client
+        @client ||= OpenNebula::Client.new
+    end
+
+    def system
+        @system ||= OpenNebula::System.new(client)
+    end
+
+    def db_escape(string)
+        string.gsub("'", "''")
+    end
+
+    def purge_history
         vmpool = OpenNebula::VirtualMachinePool.new(client)
         vmpool.info_all
 
@@ -62,13 +58,9 @@ class OneDBAction::PurgeHistory < OneDBAction::Base
                 end
             end
         end
-
-        0
     end
-end
 
-class OneDBAction::PurgeDoneVM < OneDBAction::Base
-    def run
+    def purge_done_vm
         vmpool = OpenNebula::VirtualMachinePool.new(client)
         vmpool.info(OpenNebula::Pool::INFO_ALL,
                     -1,
@@ -90,7 +82,5 @@ class OneDBAction::PurgeDoneVM < OneDBAction::Base
                 raise "Error deleting record: #{rc.message}"
             end
         end
-
-        0
     end
 end
