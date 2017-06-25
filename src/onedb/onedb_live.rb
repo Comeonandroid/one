@@ -19,6 +19,31 @@ class OneDBLive
         string.gsub("'", "''")
     end
 
+    def delete_sql(table, where)
+        "DELETE from #{table} WHERE #{where}"
+    end
+
+    def delete(table, where, federate)
+        sql = delete_sql(table, where)
+        db_exec(sql, "Error deleting record", federate)
+    end
+
+    def update_body_sql(table, body, where)
+        "UPDATE vm_pool SET body = '#{db_escape(body)}' WHERE #{where}"
+    end
+
+    def update_body(table, body, where, federate)
+        sql = update_body_sql(table, body, where)
+        db_exec(sql, "Error updating record", federate)
+    end
+
+    def db_exec(sql, error_msg, federate = false)
+        rc = system.sql_command(sql, federate)
+        if OpenNebula.is_error?(rc)
+            raise "#{error_msg}: #{rc.message}"
+        end
+    end
+
     def purge_history
         vmpool = OpenNebula::VirtualMachinePool.new(client)
         vmpool.info_all
@@ -49,13 +74,14 @@ class OneDBLive
                 vm.delete_element('HISTORY_RECORDS/HISTORY')
                 vm.add_element('HISTORY_RECORDS', 'HISTORY' => last_history)
 
+                # Update VM body to leave only the last history record
                 body = db_escape(vm.to_xml)
-                sql = "UPDATE vm_pool SET body = '#{body}' WHERE oid = #{vm.id}"
+                update_body("vm_pool", vm.to_xml, "oid = #{vm.id}", false)
 
-                rc = system.sql_command(sql, false)
-                if OpenNebula.is_error?(rc)
-                    raise "Error updating record: #{rc.message}"
-                end
+                # Delete any history record that does not have the same
+                # SEQ number as the last history record
+                seq_num = last_history['SEQ']
+                delete("history", "vid = #{vm.id} and seq != #{seq_num}", false)
             end
         end
     end
@@ -68,19 +94,8 @@ class OneDBLive
                     OpenNebula::VirtualMachine::VM_STATE.index('DONE'))
 
         vmpool.each do |vm|
-            sql = "DELETE FROM vm_pool WHERE oid = #{vm.id}"
-
-            rc = system.sql_command(sql, false)
-            if OpenNebula.is_error?(rc)
-                raise "Error deleting record: #{rc.message}"
-            end
-
-            sql = "DELETE FROM history WHERE vid = #{vm.id}"
-
-            rc = system.sql_command(sql, false)
-            if OpenNebula.is_error?(rc)
-                raise "Error deleting record: #{rc.message}"
-            end
+            delete("vm_pool", "oid = #{vm.id}", false)
+            delete("history", "vid = #{vm.id}", false)
         end
     end
 end
