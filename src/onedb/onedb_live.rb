@@ -44,11 +44,33 @@ class OneDBLive
         end
     end
 
-    def purge_history
+    def percentage_line(current, max, carriage_return = false)
+        return_symbol = carriage_return ? "\r" : ""
+        percentile = current.to_f / max.to_f * 100
+
+        "#{current}/#{max} #{percentile.round(2)}%#{return_symbol}"
+    end
+
+    def purge_history(options = {})
         vmpool = OpenNebula::VirtualMachinePool.new(client)
         vmpool.info_all
 
+        ops = {
+            start_time: 0,
+            end_time: Time.now
+        }.merge(options)
+
+        start_time  = ops[:start_time].to_i
+        end_time    = ops[:end_time].to_i
+
+        last_id = vmpool["/VM_POOL/VM[last()]/ID"]
+
         vmpool.each do |vm|
+            print percentage_line(vm.id, last_id, true)
+
+            time = vm["STIME"].to_i
+            next unless time >= start_time && time < end_time
+
             # vmpool info only returns the last history record. We can check
             # if this VM can have more than one record using the sequence
             # number. If it's 0 or it does not exist we can skip the VM.
@@ -86,14 +108,29 @@ class OneDBLive
         end
     end
 
-    def purge_done_vm
+    def purge_done_vm(options = {})
         vmpool = OpenNebula::VirtualMachinePool.new(client)
         vmpool.info(OpenNebula::Pool::INFO_ALL,
                     -1,
                     -1,
                     OpenNebula::VirtualMachine::VM_STATE.index('DONE'))
 
+        ops = {
+            start_time: 0,
+            end_time: Time.now
+        }.merge(options)
+
+        start_time  = ops[:start_time].to_i
+        end_time    = ops[:end_time].to_i
+
+        last_id = vmpool["/VM_POOL/VM[last()]/ID"]
+
         vmpool.each do |vm|
+            print percentage_line(vm.id, last_id, true)
+
+            time = vm["ETIME"].to_i
+            next unless time >= start_time && time < end_time
+
             delete("vm_pool", "oid = #{vm.id}", false)
             delete("history", "vid = #{vm.id}", false)
         end
