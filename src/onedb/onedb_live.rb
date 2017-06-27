@@ -28,8 +28,39 @@ class OneDBLive
         db_exec(sql, "Error deleting record", federate)
     end
 
+    def update_sql(table, values, where)
+        str = "UPDATE #{table} SET "
+
+        changes = []
+
+        values.each do |key, value|
+            change = "#{key.to_s} = "
+
+            case value
+            when String, Symbol
+                change << "'#{db_escape(value.to_s)}'"
+            when Numeric
+                change << value.to_s
+            else
+                change << value.to_s
+            end
+
+            changes << change
+        end
+
+        str << changes.join(', ')
+        str << " WHERE #{where}"
+
+        str
+    end
+
+    def update(table, values, where, federate)
+        sql = update_sql(table, values, where)
+        db_exec(sql, "Error updating record", federate)
+    end
+
     def update_body_sql(table, body, where)
-        "UPDATE vm_pool SET body = '#{db_escape(body)}' WHERE #{where}"
+        "UPDATE #{table} SET body = '#{db_escape(body)}' WHERE #{where}"
     end
 
     def update_body(table, body, where, federate)
@@ -91,8 +122,18 @@ class OneDBLive
             hash = vm.to_hash
             val_history = hash['VM']['HISTORY_RECORDS']['HISTORY']
 
-            if Array === val_history && val_history.size > 1
-                last_history = val_history.last
+            if Array === val_history && val_history.size > 2
+                last_history = val_history.last(2)
+
+                old_seq = []
+                seq_num = last_history.first['SEQ']
+
+                # Renumerate the sequence
+                last_history.each_with_index do |history, index|
+                    old_seq << history['SEQ'].to_i
+                    history['SEQ'] = index
+                end
+
                 vm.delete_element('HISTORY_RECORDS/HISTORY')
                 vm.add_element('HISTORY_RECORDS', 'HISTORY' => last_history)
 
@@ -102,8 +143,15 @@ class OneDBLive
 
                 # Delete any history record that does not have the same
                 # SEQ number as the last history record
-                seq_num = last_history['SEQ']
-                delete("history", "vid = #{vm.id} and seq != #{seq_num}", false)
+                pp seq_num
+                delete("history", "vid = #{vm.id} and seq < #{seq_num}", false)
+
+                # Renumerate sequence numbers
+                old_seq.each_with_index do |seq, index|
+                    update("history",
+                           { seq: index },
+                           "vid = #{vm.id} and seq = #{seq}", false)
+                end
             end
         end
     end
