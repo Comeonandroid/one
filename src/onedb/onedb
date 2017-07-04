@@ -527,10 +527,24 @@ cmd=CommandParser::CmdParser.new(ARGV) do
             * --id: object id, example: 156
             * --xpath: xpath expression, example: TEMPLATE[count(NIC)>1]
             * --expr: xpath expression, can use operators =, !=, <, >, <= or >=
-                example: TEMPLATE/NIC/NIC_ID>0
+                examples: UNAME=oneadmin, TEMPLATE/NIC/NIC_ID>0
 
         If you want to change a value use a third parameter. In case you want
         to delete it use --delete option.
+
+        Change the second network of VMs that belong to "user":
+
+            onedb change-body vm --expr UNAME=user \\
+                '/VM/TEMPLATE/NIC[NETWORK="service"]/NETWORK' new_network
+
+        Delete cache attribute in all disks, write xml, do not modify DB:
+
+            onedb change-body vm '/VM/TEMPLATE/DISK/CACHE' --delete --dry
+
+        Delete cache attribute in all disks in poweroff:
+
+            onedb change-body vm --expr LCM_STATE=8 \\
+                '/VM/TEMPLATE/DISK/CACHE' --delete
     EOT
 
     command :'change-body', change_body_desc, :object, :xpath, [:value, nil],
