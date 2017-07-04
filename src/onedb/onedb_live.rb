@@ -183,4 +183,146 @@ class OneDBLive
             delete("history", "vid = #{vm.id}", false)
         end
     end
+
+    def check_expr(object, expr)
+        reg = /^(?<xpath>.+?)(?<operator>=|!=|>=|<=|>|<)(?<value>.*?)$/
+        parsed = expr.match(reg)
+
+        raise "Expression malformed: '#{expr}'" unless parsed
+
+        val = object[parsed[:xpath]]
+        return false if !val
+
+        p_val = parsed[:value].strip
+        val.strip!
+
+        res = false
+
+        res = case parsed[:operator]
+        when '='
+            val == p_val
+        when '!='
+            val != p_val
+        when '<'
+            val.to_i < p_val.to_i
+        when '>'
+            val.to_i > p_val.to_i
+        when '<='
+            val.to_i <= p_val.to_i
+        when '>='
+            val.to_i >= p_val.to_i
+        end
+
+        res
+    end
+
+    def change_body(object, xpath, value, options = {})
+        case (object||'').downcase.strip.to_sym
+        when :vm
+            table = 'vm_pool'
+            object = OpenNebula::VirtualMachinePool.new(client)
+            federate = false
+
+        when :host
+            table = 'host_pool'
+            object = OpenNebula::HostPool.new(client)
+            federate = false
+
+        when :vnet
+            table = 'network_pool'
+            object = OpenNebula::VirtualNetworkPool.new(client)
+            federate = false
+
+        when :image
+            table = 'image_pool'
+            object = OpenNebula::ImagePool.new(client)
+            federate = false
+
+        when :cluster
+            table = 'cluster_pool'
+            object = OpenNebula::ClusterPool.new(client)
+            federate = false
+
+        when :document
+            table = 'document_pool'
+            object = OpenNebula::DocumentPool.new(client)
+            federate = false
+
+        when :group
+            table = 'group_pool'
+            object = OpenNebula::GroupPool.new(client)
+            federate = true
+
+        when :marketplace
+            table = 'marketplace_pool'
+            object = OpenNebula::MarketPlacePool.new(client)
+            federate = true
+
+        when :marketplaceapp
+            table = 'marketplaceapp_pool'
+            object = OpenNebula::MarketPlaceAppPool.new(client)
+            federate = true
+
+        when :secgroup
+            table = 'secgroup_pool'
+            object = OpenNebula::SecurityGroupPool.new(client)
+            federate = false
+
+        when :template
+            table = 'template_pool'
+            object = OpenNebula::TemplatePool.new(client)
+            federate = false
+
+        when :vrouter
+            table = 'vrouter_pool'
+            object = OpenNebula::VirtualRouterPool.new(client)
+            federate = false
+
+        when :zone
+            table = 'zone_pool'
+            object = OpenNebula::ZonePool.new(client)
+            federate = true
+
+        else
+            raise "Object type '#{object}' not supported"
+        end
+
+        if !value && !options[:delete]
+            raise "A value or --delete should specified"
+        end
+
+        object.info
+
+        object.each do |o|
+            if options[:id]
+                next unless o.id.to_s.strip == options[:id].to_s
+            elsif options[:xpath]
+                next unless o[options[:xpath]]
+            elsif options[:expr]
+                next unless check_expr(o, options[:expr])
+            end
+
+            o.info
+            doc = Nokogiri::XML(o.to_xml, nil, NOKOGIRI_ENCODING) do |c|
+                c.default_xml.noblanks
+            end
+
+            doc.xpath(xpath).each do |e|
+                if options[:delete]
+                    e.remove
+                else
+                    e.content = value
+                end
+            end
+
+            xml = doc.root.to_xml
+
+            if options[:dry]
+                puts xml
+            else
+                update_body(table, xml, "oid = #{o.id}", federate)
+            end
+        end
+    end
 end
+

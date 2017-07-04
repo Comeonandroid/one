@@ -226,6 +226,10 @@ EXTRA={
     :format => Array
 }
 
+###############################################################################
+# Live operation options
+###############################################################################
+
 START_TIME = {
     :name   => "start_time",
     :short  => "-s TIME",
@@ -240,6 +244,43 @@ END_TIME = {
     :large  => "--end TIME" ,
     :description => "Last time to process",
     :format => Time
+}
+
+ID = {
+    :name   => "id",
+    :short  => "-i ID",
+    :large  => "--id ID" ,
+    :description => "Filter by ID",
+    :format => Numeric
+}
+
+XPATH = {
+    :name   => "xpath",
+    :short  => "-x ID",
+    :large  => "--xpath ID" ,
+    :description => "Filter by xpath",
+    :format => String
+}
+
+EXPR= {
+    :name   => "expr",
+    :short  => "-e ID",
+    :large  => "--expr ID" ,
+    :description => "Filter by expression (UNAME=oneadmin)",
+    :format => String
+}
+
+DRY= {
+    :name   => "dry",
+    :large  => "--dry" ,
+    :description => "Do not write in the database, output xml"
+}
+
+DELETE= {
+    :name   => "delete",
+    :short  => "-d",
+    :large  => "--delete" ,
+    :description => "Delete all matched xpaths"
 }
 
 cmd=CommandParser::CmdParser.new(ARGV) do
@@ -439,7 +480,7 @@ cmd=CommandParser::CmdParser.new(ARGV) do
         Deletes all but the last history records from non DONE VMs
     EOT
 
-    command :'purge-history' , purge_history_desc,
+    command :'purge-history', purge_history_desc,
             :options => [BACKUP, START_TIME, END_TIME] do
         begin
             action = OneDBLive.new
@@ -459,13 +500,46 @@ cmd=CommandParser::CmdParser.new(ARGV) do
         Deletes all VMs in DONE state
     EOT
 
-    command :'purge-done' , purge_done_desc,
+    command :'purge-done', purge_done_desc,
             :options => [BACKUP, START_TIME, END_TIME] do
         begin
             action = OneDBLive.new
             action.purge_done_vm(options)
         rescue Exception => e
             puts e.name
+            pp e.backtrace
+            [-1, e.message]
+        end
+
+        0 # exit code
+    end
+
+    ###########################################################################
+    # Change value in object body
+    ###########################################################################
+    change_body_desc = <<-EOT.unindent
+        Changes a value from the body of an object. The possible objects are:
+            vm, host, vnet, image, cluster, document, group, marketplace,
+            marketplaceapp, secgroup, template, vrouter or zone
+
+        You can filter the objects to modify using one of these options:
+
+            * --id: object id, example: 156
+            * --xpath: xpath expression, example: TEMPLATE[count(NIC)>1]
+            * --expr: xpath expression, can use operators =, !=, <, >, <= or >=
+                example: TEMPLATE/NIC/NIC_ID>0
+
+        If you want to change a value use a third parameter. In case you want
+        to delete it use --delete option.
+    EOT
+
+    command :'change-body', change_body_desc, :object, :xpath, [:value, nil],
+            :options => [BACKUP, ID, XPATH, EXPR, DRY, DELETE] do
+        begin
+            action = OneDBLive.new
+            action.change_body(args[0], args[1], args[2], options)
+        rescue Exception => e
+            puts e.message
             pp e.backtrace
             [-1, e.message]
         end
