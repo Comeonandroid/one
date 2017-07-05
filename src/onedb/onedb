@@ -481,7 +481,7 @@ cmd=CommandParser::CmdParser.new(ARGV) do
     EOT
 
     command :'purge-history', purge_history_desc,
-            :options => [BACKUP, START_TIME, END_TIME] do
+            :options => [START_TIME, END_TIME] do
         begin
             action = OneDBLive.new
             action.purge_history(options)
@@ -502,7 +502,7 @@ cmd=CommandParser::CmdParser.new(ARGV) do
     EOT
 
     command :'purge-done', purge_done_desc,
-            :options => [BACKUP, START_TIME, END_TIME] do
+            :options => [START_TIME, END_TIME] do
         begin
             action = OneDBLive.new
             action.purge_done_vm(options)
@@ -549,7 +549,7 @@ cmd=CommandParser::CmdParser.new(ARGV) do
     EOT
 
     command :'change-body', change_body_desc, :object, :xpath, [:value, nil],
-            :options => [BACKUP, ID, XPATH, EXPR, DRY, DELETE] do
+            :options => [ID, XPATH, EXPR, DRY, DELETE] do
         begin
             action = OneDBLive.new
             action.change_body(args[0], args[1], args[2], options)
