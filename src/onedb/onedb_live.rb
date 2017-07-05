@@ -1,5 +1,6 @@
 
 require 'opennebula'
+require 'base64'
 
 class OneDBLive
     def initialize
@@ -75,6 +76,28 @@ class OneDBLive
         end
     end
 
+    def select(table, where)
+        sql = "SELECT * FROM #{table} WHERE #{where}"
+        res = db_query(sql, "Error querying database")
+
+        element = OpenNebula::XMLElement.new(
+            OpenNebula::XMLElement.build_xml(res, '/SQL_COMMAND'))
+
+        hash = element.to_hash
+
+        row = hash['SQL_COMMAND']['RESULT']['ROW'] rescue nil
+        [row].flatten.compact
+    end
+
+    def db_query(sql, error_msg)
+        rc = system.sql_query_command(sql)
+        if OpenNebula.is_error?(rc)
+            raise "#{error_msg}: #{rc.message}"
+        end
+
+        rc
+    end
+
     def percentage_line(current, max, carriage_return = false)
         return_symbol = carriage_return ? "\r" : ""
         percentile = current.to_f / max.to_f * 100
@@ -122,8 +145,10 @@ class OneDBLive
             hash = vm.to_hash
             val_history = hash['VM']['HISTORY_RECORDS']['HISTORY']
 
-            if Array === val_history && val_history.size > 2
-                last_history = val_history.last(2)
+            history_num = 2
+
+            if Array === val_history && val_history.size > history_num
+                last_history = val_history.last(history_num)
 
                 old_seq = []
                 seq_num = last_history.first['SEQ']
@@ -134,8 +159,10 @@ class OneDBLive
                     history['SEQ'] = index
                 end
 
+                # Only the last history record is saved in vm_pool
                 vm.delete_element('HISTORY_RECORDS/HISTORY')
-                vm.add_element('HISTORY_RECORDS', 'HISTORY' => last_history)
+                vm.add_element('HISTORY_RECORDS',
+                               'HISTORY' => last_history.last)
 
                 # Update VM body to leave only the last history record
                 body = db_escape(vm.to_xml)
@@ -143,13 +170,22 @@ class OneDBLive
 
                 # Delete any history record that does not have the same
                 # SEQ number as the last history record
-                pp seq_num
                 delete("history", "vid = #{vm.id} and seq < #{seq_num}", false)
+
+                # Get VM history
+                history = select("history", "vid = #{vm.id}")
 
                 # Renumerate sequence numbers
                 old_seq.each_with_index do |seq, index|
+                    row = history.find {|r| seq.to_s == r["seq"] }
+                    body = Base64.decode64(row['body64'])
+
+                    doc = Nokogiri::XML(body)
+                    doc.xpath("/HISTORY/SEQ").first.content = index.to_s
+                    new_body = doc.root.to_xml
+
                     update("history",
-                           { seq: index },
+                           { seq: index, body: new_body },
                            "vid = #{vm.id} and seq = #{seq}", false)
                 end
             end

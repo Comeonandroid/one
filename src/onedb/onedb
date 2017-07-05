@@ -486,6 +486,7 @@ cmd=CommandParser::CmdParser.new(ARGV) do
             action = OneDBLive.new
             action.purge_history(options)
         rescue Exception => e
+            puts e.message
             pp e.backtrace
             [-1, e.message]
         end
