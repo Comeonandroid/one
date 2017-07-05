@@ -473,11 +473,18 @@ cmd=CommandParser::CmdParser.new(ARGV) do
         end
     end
 
+    LIVE_ACTION_HELP = <<-EOT.unindent
+        **WARNING**: This action is done while OpenNebula is running. Make
+        a backup of the datasbase before executing.
+    EOT
+
     ###########################################################################
     # Purge history
     ###########################################################################
     purge_history_desc = <<-EOT.unindent
         Deletes all but the last history records from non DONE VMs
+
+        #{LIVE_ACTION_HELP}
     EOT
 
     command :'purge-history', purge_history_desc,
@@ -499,6 +506,8 @@ cmd=CommandParser::CmdParser.new(ARGV) do
     ###########################################################################
     purge_done_desc = <<-EOT.unindent
         Deletes all VMs in DONE state
+
+        #{LIVE_ACTION_HELP}
     EOT
 
     command :'purge-done', purge_done_desc,
@@ -546,6 +555,8 @@ cmd=CommandParser::CmdParser.new(ARGV) do
 
             onedb change-body vm --expr LCM_STATE=8 \\
                 '/VM/TEMPLATE/DISK/CACHE' --delete
+
+        #{LIVE_ACTION_HELP}
     EOT
 
     command :'change-body', change_body_desc, :object, :xpath, [:value, nil],
